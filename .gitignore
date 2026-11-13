@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.npm-cache/
+__pycache__/
+*.pyc
+.DS_Store
+
+# 运行配置(含密码)不进仓库 — 复制 config.example.json 为 config.json 填写
+config.json
+config.json.bak
+
+# 会话截图等本地产物
+.shots/
