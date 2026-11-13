@@ -207,6 +207,10 @@
   .side-head{padding:10px 14px 8px; border-bottom:1px solid var(--line);
     display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600}
   .side-head .count{color:var(--triage)}
+  .tg-pill{margin-left:auto; flex:0 0 auto; font-size:10.5px; line-height:1; padding:3px 9px; border-radius:99px;
+    border:1px solid var(--line); background:transparent; color:var(--dim); cursor:pointer; font-family:inherit}
+  .tg-pill:hover{border-color:#22d3ee66; color:var(--txt)}
+  .tg-pill.on{background:#22d3ee1f; border-color:#22d3ee66; color:#22d3ee}
   #unassigned{flex:1 1 auto; min-height:90px; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:7px}
   .empty{color:var(--dim); font-size:12px; text-align:center; padding:24px 0}
   #chatSessions{flex:1 1 auto; min-height:90px; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:8px}
@@ -325,8 +329,8 @@
   <aside>
     <div class="side-head">📥 未分配 / 待分诊 <span class="count" id="noneCount">0</span></div>
     <div id="unassigned"></div>
-    <div class="side-head">🗨 聊天工作 <span class="count" id="chatCount">0</span></div>
-    <div class="side-hint">近 24h · 非 Kanban（飞书 / 微信直接进行的会话）</div>
+    <div class="side-head">🗨 聊天工作 <span class="count" id="chatCount">0</span><button id="chatAll" class="tg-pill" title="切换显示范围">24h</button></div>
+    <div class="side-hint" id="chatHint">近 24h · 非 Kanban（飞书 / 微信直接进行的会话）</div>
     <div id="chatSessions"></div>
     <div class="legend">
       <span><i style="background:var(--run)"></i>进行中</span>

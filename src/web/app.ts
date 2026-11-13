@@ -207,6 +207,7 @@ const STATUS_ORDER: Record<string, number> = {
 const STALE_MIN = 45 * 60; // 心跳超过 45 分钟视为疑似卡死
 const READY_MIN = 30 * 60; // ready 超过 30 分钟视为积压
 const SESSION_WINDOW = 24 * 3600; // 聊天工作区: 显示 24h 内有活动的会话(排除 cron)
+let chatShowAll = false; // 聊天工作区: false=近 24h 窗口, true=全部会话
 
 const SOURCE_ZH: Record<string, string> = { feishu: "飞书", weixin: "微信", cli: "CLI", curator: "curator" };
 const srcLabel = (s: string): string => SOURCE_ZH[s] ?? s;
@@ -310,7 +311,8 @@ async function poll(): Promise<void> {
       fetchJSON<unknown>("/proxy/api/plugins/kanban/stats"),
       fetchJSON<ProfilesResp>("/proxy/api/plugins/kanban/profiles"),
       fetchJSON<DiagResp>("/proxy/api/plugins/kanban/diagnostics").catch(() => ({ diagnostics: [] })),
-      fetchJSON<SessionsResp>("/proxy/api/sessions?limit=100").catch(() => ({ sessions: [] })),
+      // Hermes sessions 接口 limit 上限为 100(超过 422), 这里已是全量
+fetchJSON<SessionsResp>("/proxy/api/sessions?limit=100").catch(() => ({ sessions: [] })),
     ]);
     LAST = { board, workers, stats, profiles, diag, sessions, ok: true, error: null, at: Date.now() };
   } catch (e) {
@@ -324,13 +326,14 @@ async function poll(): Promise<void> {
   if (workerPageId) renderWorkerPage();
 }
 
-/** 近 24h 有活动(或正在运行)的非 cron 聊天会话, 活跃在前、按最后活动时间倒序。 */
-function recentSessions(): Session[] {
+/** 非 cron 聊天会话: all=false 时仅近 24h 有活动(或正在运行)的, all=true 时全部(仍排除归档/隐藏), 活跃在前、按最后活动时间倒序。 */
+function recentSessions(all: boolean): Session[] {
   const list: Session[] = (LAST.sessions && LAST.sessions.sessions) || [];
   const now = Date.now() / 1000;
   return list
     .filter((s) => s.source !== "cron" && !s.archived && !s.hidden)
     .filter((s) => {
+      if (all) return true;
       const la = s.last_activity_at ? Number(s.last_activity_at) : null;
       return Boolean(s.is_active) || (la != null && now - la < SESSION_WINDOW);
     })
@@ -541,7 +544,7 @@ function render(): void {
   const states = workers.map((w) => workerState(w.name));
   const activeCnt = states.filter((s) => ["running", "stale"].includes(s.state)).length;
   const blockedCnt = states.filter((s) => s.state === "blocked").length;
-  const activeChats = recentSessions().filter((s) => s.is_active);
+  const activeChats = recentSessions(chatShowAll).filter((s) => s.is_active);
   const chiefChatN = activeChats.filter((s) => profLabel(String(s.profile ?? "")) === "chief").length;
   const chiefEl = div("node st-chief" + (activeCnt || blockedCnt || chiefChatN ? " busy" : ""));
   chiefEl.style.left = chiefPos.x + "px";
@@ -673,13 +676,24 @@ function renderUnassigned(): void {
 /* ================= 聊天工作(非 Kanban 的会话) ================= */
 
 function renderChatSessions(): void {
-  const list = recentSessions();
+  const list = recentSessions(chatShowAll);
   const cnt = document.getElementById("chatCount");
   if (cnt) cnt.textContent = String(list.length);
+  const btn = document.getElementById("chatAll") as HTMLButtonElement | null;
+  if (btn) {
+    btn.textContent = chatShowAll ? "全部" : "24h";
+    btn.classList.toggle("on", chatShowAll);
+    btn.title = chatShowAll ? "当前显示全部会话, 点击切回近 24h" : "当前显示近 24h, 点击查看全部";
+  }
+  const hint = document.getElementById("chatHint");
+  if (hint)
+    hint.textContent = chatShowAll
+      ? "全部 · 非 Kanban（最近 100 个会话, 含已结束的历史会话）"
+      : "近 24h · 非 Kanban（飞书 / 微信直接进行的会话）";
   const box = $("#chatSessions");
   if (!box) return;
   if (!list.length) {
-    box.innerHTML = `<div class="empty">🗨 近 24h 无聊天工作<br>飞书 / 微信里直接干的活会显示在这里</div>`;
+    box.innerHTML = `<div class="empty">🗨 ${chatShowAll ? "无聊天会话" : "近 24h 无聊天工作"}<br>飞书 / 微信里直接干的活会显示在这里</div>`;
     return;
   }
   const now = Date.now() / 1000;
@@ -1327,6 +1341,13 @@ $("#btnPause").onclick = () => {
   if (!paused) restartPoll();
 };
 
+const chatAllBtn = document.getElementById("chatAll");
+if (chatAllBtn)
+  chatAllBtn.onclick = () => {
+    chatShowAll = !chatShowAll;
+    restartPoll(); // 立即用新的 limit 重新拉取并渲染
+  };
+
 document.addEventListener("keydown", (e: KeyboardEvent) => {
   if (e.key !== "Escape") return;
   if ($("#drawer").classList.contains("open")) {
@@ -1380,6 +1401,10 @@ async function init(): Promise<void> {
   if (wp) setTimeout(() => openWorkerPage(wp), 1000);
   const ws = qs.get("session");
   if (ws) setTimeout(() => openSessionDrawer(ws), 1500);
+  if (qs.get("chatall") === "1" && !chatShowAll) {
+    chatShowAll = true;
+    restartPoll();
+  }
   window.setInterval(() => {
     $("#clock").textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   }, 1000);
