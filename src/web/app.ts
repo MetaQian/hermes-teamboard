@@ -1405,6 +1405,38 @@ async function init(): Promise<void> {
     chatShowAll = true;
     restartPoll();
   }
+  // 调试: /?layout=1 在首帧后叠加布局测量(JSON), 用于排查布局跳动
+  if (qs.get("layout") === "1")
+    setTimeout(() => {
+      const pick = (id: string): Record<string, number | string> | null => {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return {
+          id,
+          x: Math.round(r.x),
+          y: Math.round(r.y),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+          clientH: el.clientHeight,
+          scrollH: el.scrollHeight,
+        };
+      };
+      const items = ["header", "main", "canvasWrap", "aside", "unassigned", "chatSessions", "chatHint", "chatAll", "statsCard"]
+        .map(pick)
+        .filter(Boolean);
+      const lg = document.querySelector(".legend");
+      if (lg) {
+        const r = lg.getBoundingClientRect();
+        items.push({ id: "legend", x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) });
+      }
+      const pre = document.createElement("pre");
+      pre.id = "layoutDump";
+      pre.textContent = JSON.stringify(items, null, 0);
+      pre.style.cssText =
+        "position:fixed;left:8px;top:56px;z-index:9999;max-width:70%;background:#000000e6;color:#7CFC00;font:11px/1.5 monospace;white-space:pre-wrap;border:1px solid #7CFC0055;padding:6px";
+      document.body.appendChild(pre);
+    }, 3000);
   window.setInterval(() => {
     $("#clock").textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   }, 1000);
