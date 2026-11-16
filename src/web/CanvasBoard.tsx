@@ -6,7 +6,7 @@
 import { useEffect, useRef } from "react";
 import { select, zoom, zoomIdentity } from "d3";
 import {
-  chipMeta, chatShowAll, knownChips, nodeRects, openDrawerTask, openWorkerPage, closeWorkerPage,
+  LAST, chipMeta, chatShowAll, knownChips, nodeRects, openDrawerTask, openWorkerPage, closeWorkerPage,
   emit, profLabel, recentSessions, rel, roster, sortTasks, workerState, zhState,
   avatarBg, type Task, type WorkerState,
 } from "./state";
@@ -41,6 +41,8 @@ interface Engine {
   nodeEls: Record<string, HTMLDivElement>;
   rafStarted: boolean;
   zoomBehavior: any;
+  lastSig: string;
+  lastTransform: string;
 }
 
 const $ = (s: string): HTMLElement => document.querySelector(s) as HTMLElement;
@@ -102,6 +104,8 @@ let ENGINE: Engine = {
   nodeEls: {},
   rafStarted: false,
   zoomBehavior: null,
+  lastSig: "",
+  lastTransform: "",
 };
 
 /** name 为 null 时高亮全部连线(chief 悬停)。 */
@@ -131,11 +135,69 @@ function makeChip(t: Task, st: WorkerState | null, forceStale: boolean): HTMLDiv
 
 /* ---------- 整帧渲染 ---------- */
 
+/** 渲染输入签名: 未变化则跳过重建, 避免每次轮询/交互都重启画布 CSS 动画 */
+function boardSig(W: number, H: number): string {
+  return JSON.stringify([
+    THEME_NOW, W, H, chatShowAll,
+    Math.floor(Date.now() / 30000), // 相对时间文案的时间桶: 无变化时至少每 30s 刷新一次
+    LAST.board,
+    LAST.workers,
+    recentSessions(chatShowAll).filter((s) => s.is_active).map((s) => s.id),
+  ]);
+}
+
+/** 测量 worker 节点屏幕位置(含缩放/平移, 供悬浮面板锚定) */
+function measureNodes(): void {
+  const { workers } = roster();
+  for (const w of workers) {
+    const el = ENGINE.nodeEls[w.name];
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width > 0)
+      nodeRects[w.name] = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width, h: r.height };
+  }
+}
+
+/** 无限动画相位连续: 重建后用负延迟对齐全局时钟,
+ *  光晕/跑马灯/警告脉冲不从 0% 重启(否则每次轮询/交互都会看到一次"跳") */
+function fixAnimationPhases(nodes: HTMLElement, svg: SVGSVGElement): void {
+  const nowSec = performance.now() / 1000;
+  for (const el of [...nodes.querySelectorAll("*"), ...svg.querySelectorAll("*")]) {
+    const cs = getComputedStyle(el);
+    if (cs.animationName === "none") continue;
+    const durs = cs.animationDuration.split(",").map((s) => parseFloat(s) || 0);
+    const iters = cs.animationIterationCount.split(",");
+    let any = false;
+    const delays = iters.map((v, i) => {
+      if (v.trim() === "infinite" && durs[i] > 0) {
+        any = true;
+        return `-${(nowSec % durs[i]).toFixed(3)}s`;
+      }
+      return "0s";
+    });
+    if (any) (el as HTMLElement | SVGElement).style.animationDelay = delays.join(", ");
+  }
+}
+
 function renderBoard(): void {
   const { chief, workers } = roster();
   const wrap = document.getElementById("canvasWrap") as HTMLElement;
   const W = wrap.clientWidth;
   const H = wrap.clientHeight;
+
+  /* 跳过重建: 输入未变时复用现有 DOM(光点位置基于全局时钟, 天然连续) */
+  const sig = boardSig(W, H);
+  if (sig === ENGINE.lastSig) {
+    const vp = document.getElementById("viewport");
+    const t = vp ? vp.style.transform : "";
+    if (ENGINE.lastTransform !== t) {
+      ENGINE.lastTransform = t;
+      measureNodes(); // 缩放/平移: 只刷新悬浮面板锚点, 不动 DOM
+    }
+    return;
+  }
+  ENGINE.lastSig = sig;
+
   const nodes = document.getElementById("nodes") as HTMLElement;
   const svg = document.getElementById("edges") as unknown as SVGSVGElement;
   svg.setAttribute("viewBox", "0 0 " + W + " " + H);
@@ -311,14 +373,8 @@ function renderBoard(): void {
     nodes.appendChild(lane);
   });
 
-  // 测量各 worker 节点屏幕位置(含当前缩放/平移, 供悬浮面板锚定)
-  for (const w of workers) {
-    const el = ENGINE.nodeEls[w.name];
-    if (!el) continue;
-    const r = el.getBoundingClientRect();
-    if (r.width > 0)
-      nodeRects[w.name] = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width, h: r.height };
-  }
+  measureNodes();
+  fixAnimationPhases(nodes, svg);
   if (!ENGINE.rafStarted && ENGINE.pulses.length) {
     ENGINE.rafStarted = true;
     requestAnimationFrame(tickPulses);
