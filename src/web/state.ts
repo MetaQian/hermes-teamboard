@@ -535,8 +535,9 @@ async function poll(): Promise<void> {
       fetchJSON<unknown>("/proxy/api/plugins/kanban/stats"),
       fetchJSON<ProfilesResp>("/proxy/api/plugins/kanban/profiles"),
       fetchJSON<DiagResp>("/proxy/api/plugins/kanban/diagnostics").catch(() => ({ diagnostics: [] })),
-      // Hermes sessions 接口 limit 上限为 100(超过 422), 这里已是全量
-      fetchJSON<SessionsResp>("/proxy/api/sessions?limit=100").catch(() => ({ sessions: [] })),
+      // limit 上限 100(超过 422); 必须 exclude_sources=cron, 否则 cron 会话(每 15min 一条)
+      // 会占满 100 条窗口, 把真正的聊天会话挤出列表
+      fetchJSON<SessionsResp>("/proxy/api/sessions?limit=100&exclude_sources=cron").catch(() => ({ sessions: [] })),
       // 定时任务(cron job)列表; 端点异常不影响看板主体
       fetchJSON<CronJob[]>("/proxy/api/cron/jobs").catch(() => []),
     ]);

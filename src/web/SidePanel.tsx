@@ -113,7 +113,7 @@ export default function SidePanel() {
       </div>
       <div className="side-hint">
         {snap.chatShowAll
-          ? "全部 · 非 Kanban（最近 100 个会话, 含已结束的历史会话）"
+          ? "全部 · 非 Kanban（最多 100 个, 含历史会话）"
           : "近 24h · 非 Kanban（飞书 / 微信直接进行的会话）"}
       </div>
       <div id="chatSessions">

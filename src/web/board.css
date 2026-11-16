@@ -237,7 +237,9 @@ html[data-theme="light"] { color-scheme: light; }
 .side-head { padding: 10px 14px 8px; border-bottom: 1px solid var(--tb-border, #1e2a4a);
   display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; flex-wrap: nowrap; }
 .side-head .count { color: var(--c-triage, #c084fc); }
-.side-hint { font-size: 10.5px; color: var(--tb-text-tertiary, #5a6580); padding: 0 14px 6px; }
+.side-hint { font-size: 10.5px; line-height: 1.4; color: var(--tb-text-tertiary, #5a6580);
+  padding: 0 14px 6px; box-sizing: border-box; height: calc(2 * 1.4em + 6px);
+  overflow: hidden; display: flex; align-items: center; }
 .empty { color: var(--tb-text-secondary, #8b96ad); font-size: 12px; text-align: center; padding: 24px 0; }
 #cronJobs { flex: 0 1 auto; min-height: 56px; max-height: 34%; overflow-y: auto; scrollbar-gutter: stable;
   padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; }
