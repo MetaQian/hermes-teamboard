@@ -348,6 +348,9 @@ const MIME: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".ico": "image/x-icon",
+  ".map": "application/json",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
 };
 
 function sendJson(res: http.ServerResponse, code: number, obj: unknown): void {
@@ -462,24 +465,6 @@ class Server {
     const p = u.pathname;
     const method = req.method || "GET";
 
-    if (method === "GET" && (p === "/" || p === "/index.html")) {
-      if (!serveStatic(res, "index.html")) notFound(res);
-      return;
-    }
-    if (method === "GET" && (p === "/app.js" || p === "/app.css" || p === "/favicon.ico")) {
-      if (!serveStatic(res, p.slice(1))) notFound(res);
-      return;
-    }
-    if (p.startsWith("/vendor/") && method === "GET") {
-      // 本地 vendored 前端库(d3 / echarts), 扁平路径, 拒绝目录穿越
-      const name = p.slice("/vendor/".length);
-      if (!name || name.includes("..") || name.includes("/") || name.includes("\0")) {
-        notFound(res);
-        return;
-      }
-      if (!serveStatic(res, "vendor/" + name)) notFound(res);
-      return;
-    }
     if (p === "/api/config" && method === "GET") {
       sendJson(res, 200, publicCfg(this.cfg));
       return;
@@ -494,6 +479,12 @@ class Server {
     }
     if (p.startsWith("/proxy/") && method === "GET") {
       await this.handleProxy(u, res);
+      return;
+    }
+    if (method === "GET") {
+      // 前端为 Vite 构建的静态产物(dist/web), 未命中具体文件时回退 index.html
+      const name = p === "/" ? "index.html" : p.slice(1);
+      if (!serveStatic(res, name)) serveStatic(res, "index.html");
       return;
     }
     notFound(res);

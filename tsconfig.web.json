@@ -1,13 +1,12 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist/web",
-    "rootDir": "src/web",
-    "module": "ES2022",
+    "noEmit": true,
+    "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": [],
-    "noEmitOnError": true
+    "jsx": "react-jsx",
+    "types": []
   },
-  "include": ["src/web/app.ts", "src/web/vendor.d.ts"]
+  "include": ["src/web/**/*.ts", "src/web/**/*.tsx"]
 }

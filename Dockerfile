@@ -4,8 +4,8 @@ WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY tsconfig.base.json tsconfig.server.json tsconfig.web.json ./
+COPY vite.config.ts ./
 COPY src ./src
-COPY scripts ./scripts
 RUN npm run build
 
 # ---------- 运行阶段(无 node_modules, 零运行时依赖) ----------
