@@ -206,7 +206,7 @@ export default function DetailDrawer() {
                   <div className="ev" key={i}>
                     <b>{kind}</b>
                     <span>{ts}</span>
-                    <span style={{ color: "var(--ant-color-text-tertiary, #5a6580)" }}>{extra}</span>
+                    <span style={{ color: "var(--tb-text-tertiary, #5a6580)" }}>{extra}</span>
                   </div>
                 );
               })}

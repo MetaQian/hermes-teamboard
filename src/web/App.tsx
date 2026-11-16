@@ -14,28 +14,8 @@ import {
   openWorkerPage, setChatAll, setConfigOpen, setTheme, startPolling,
   stopPolling, teamCounts, togglePause,
 } from "./state";
-import { applyStatusVars } from "./theme";
+import { applyStatusVars, DARK_TOKEN, LIGHT_TOKEN } from "./theme";
 import { useStore } from "./useStore";
-
-const DARK_TOKEN = {
-  colorPrimary: "#22d3ee",
-  borderRadius: 8,
-  colorBgLayout: "#0a0f1e",
-  colorBgContainer: "#101830",
-  colorBgElevated: "#141f3d",
-  colorBorder: "#1e2a4a",
-  colorBorderSecondary: "#2a3a66",
-  colorText: "#e6ebf5",
-  colorTextSecondary: "#8b96ad",
-  colorTextTertiary: "#5a6580",
-  colorFillTertiary: "#131f42",
-  colorFillQuaternary: "#0d1530",
-};
-
-const LIGHT_TOKEN = {
-  colorPrimary: "#0891b2",
-  borderRadius: 8,
-};
 
 /** ?layout=1 调试: 在页面上打印关键元素几何, 用于无头验证布局不跳动 */
 function layoutDump(): void {

@@ -2,9 +2,36 @@
  * 主题定义 — 暗黑/亮色由 antd 的 theme.darkAlgorithm / defaultAlgorithm 驱动,
  * 本模块只管 antd token 体系之外的部分: 画布状态色(任务状态/连线/光点)与 ECharts 配色。
  * 状态色同时写入 :root 的 --c-* CSS 变量, 供画布 CSS(color-mix) 与 ECharts 使用。
+ *
+ * 注意: antd 的 cssVar 模式把 --ant-* 变量注入到 .css-var-r0(仅 antd 组件根元素),
+ * 自绘的画布/面板文字继承不到。因此用 antd 官方 theme.getDesignToken(与
+ * ConfigProvider 内部同一套算法+token)计算出真实值, 再写到 :root 的 --tb-* 变量,
+ * 供 board.css 使用 —— 自绘部分的文字/底色与 antd 组件永远同源同步。
  */
+import { theme as antdTheme } from "antd";
 
 export type ThemeMode = "dark" | "light";
+
+/** 传给 antd ConfigProvider 的主题 token(暗色保留原深蓝观感, 亮色只定主色) */
+export const DARK_TOKEN = {
+  colorPrimary: "#22d3ee",
+  borderRadius: 8,
+  colorBgLayout: "#0a0f1e",
+  colorBgContainer: "#101830",
+  colorBgElevated: "#141f3d",
+  colorBorder: "#1e2a4a",
+  colorBorderSecondary: "#2a3a66",
+  colorText: "#e6ebf5",
+  colorTextSecondary: "#8b96ad",
+  colorTextTertiary: "#5a6580",
+  colorFillTertiary: "#131f42",
+  colorFillQuaternary: "#0d1530",
+};
+
+export const LIGHT_TOKEN = {
+  colorPrimary: "#0891b2",
+  borderRadius: 8,
+};
 
 export interface StatusPalette {
   run: string;
@@ -113,11 +140,26 @@ export function persistTheme(m: ThemeMode): void {
   }
 }
 
-/** 把当前主题的状态色/表面色写入 :root(--c-* / --n-* / ...), 画布 CSS 与 ECharts 共用 */
+/** 把当前主题的状态色/表面色写入 :root(--c-* / --n-* / ...), 画布 CSS 与 ECharts 共用;
+ *  同时用 antd getDesignToken 计算真实 token 写入 --tb-*, 让自绘文字/底色跟随 antd 主题 */
 export function applyStatusVars(m: ThemeMode): void {
   const p = PALETTES[m];
   const s = SURFACES[m];
   const rs = document.documentElement.style;
+  const tokens = antdTheme.getDesignToken({
+    algorithm: m === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+    token: m === "dark" ? DARK_TOKEN : LIGHT_TOKEN,
+  });
+  rs.setProperty("--tb-text", String(tokens.colorText));
+  rs.setProperty("--tb-text-secondary", String(tokens.colorTextSecondary));
+  rs.setProperty("--tb-text-tertiary", String(tokens.colorTextTertiary));
+  rs.setProperty("--tb-bg-layout", String(tokens.colorBgLayout));
+  rs.setProperty("--tb-bg-container", String(tokens.colorBgContainer));
+  rs.setProperty("--tb-bg-elevated", String(tokens.colorBgElevated));
+  rs.setProperty("--tb-border", String(tokens.colorBorder));
+  rs.setProperty("--tb-border-secondary", String(tokens.colorBorderSecondary));
+  rs.setProperty("--tb-fill-tertiary", String(tokens.colorFillTertiary));
+  rs.setProperty("--tb-fill-quaternary", String(tokens.colorFillQuaternary));
   rs.setProperty("--tb-bg", m === "dark" ? "#0a0f1e" : "#f5f5f5");
   for (const k of Object.keys(p) as (keyof StatusPalette)[]) rs.setProperty("--c-" + k, p[k]);
   rs.setProperty("--n-a", s.nA);
