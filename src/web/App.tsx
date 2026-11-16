@@ -10,7 +10,7 @@ import SettingsModal from "./SettingsModal";
 import SidePanel from "./SidePanel";
 import WorkerPop from "./WorkerPop";
 import {
-  allTasks, closeWorkerPage, hostport, openSession,
+  allTasks, closeWorkerPage, hostport, openDrawerCron, openSession,
   openWorkerPage, setChatAll, setConfigOpen, setTheme, startPolling,
   stopPolling, teamCounts, togglePause,
 } from "./state";
@@ -21,7 +21,7 @@ import { useStore } from "./useStore";
 function layoutDump(): void {
   const sel = [
     ".tb-header", ".tb-main", "#canvasWrap", ".tb-aside",
-    "#unassigned", "#chatSessions", ".side-hint", "#statsCard", ".legend",
+    "#cronJobs", "#unassigned", "#chatSessions", ".side-hint", "#statsCard", ".legend",
   ];
   const lines = sel.map((s) => {
     const el = document.querySelector(s) as HTMLElement | null;
@@ -70,13 +70,15 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [snap.workerPageId]);
 
-  /* 深链接: ?worker= ?session= ?chatall=1 ?layout=1 ?theme= (theme 由 pre-paint 处理) */
+  /* 深链接: ?worker= ?session= ?cron= ?chatall=1 ?layout=1 ?theme= (theme 由 pre-paint 处理) */
   useEffect(() => {
     const q = new URLSearchParams(location.search);
     const w = q.get("worker");
     if (w) window.setTimeout(() => openWorkerPage(w), 1000);
     const s = q.get("session");
     if (s) window.setTimeout(() => openSession(s), 1500);
+    const c = q.get("cron");
+    if (c) window.setTimeout(() => openDrawerCron(c), 1500);
     if (q.get("chatall") === "1" && !snap.chatShowAll) setChatAll(true);
     if (q.get("layout") === "1") window.setTimeout(layoutDump, 3000);
     // eslint-disable-next-line react-hooks/exhaustive-deps

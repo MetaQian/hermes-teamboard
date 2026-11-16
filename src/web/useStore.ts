@@ -14,6 +14,7 @@ export function useStore() {
     theme: S.theme,
     drawerTaskId: S.drawerTaskId,
     drawerSessionId: S.drawerSessionId,
+    drawerCronId: S.drawerCronId,
     workerPageId: S.workerPageId,
     configOpen: S.configOpen,
   };

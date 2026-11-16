@@ -31,6 +31,7 @@ export default function DetailDrawer() {
   const snap = useStore();
   const taskOpen = !!snap.drawerTaskId;
   const sessOpen = !!snap.drawerSessionId;
+  const cronOpen = !!snap.drawerCronId;
 
   const [taskDetail, setTaskDetail] = useState<TaskDetail | null>(null);
   const [taskErr, setTaskErr] = useState("");
@@ -337,9 +338,100 @@ export default function DetailDrawer() {
     } else body = <Spin style={{ margin: "40px auto" }} spinning={loading || true} />;
   }
 
+  if (cronOpen && snap.drawerCronId && !taskOpen && !sessOpen) {
+    const j = snap.last.crons.find((c) => c.id === snap.drawerCronId);
+    const fmtIso = (iso?: string | null): string => {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("zh-CN", { hour12: false });
+    };
+    if (!j) {
+      title = "定时任务";
+      body = <pre className="tb-pre">任务不存在或已删除(下一轮刷新后消失)</pre>;
+    } else {
+      title = String(j.name || "—");
+      const st = j.state || (j.enabled ? "scheduled" : "paused");
+      sub = (
+        <>
+          <Tag color={st === "paused" ? "default" : "processing"} style={{ marginInlineEnd: 6 }}>
+            {st === "paused" ? "已暂停" : st === "running" ? "执行中" : "已排期"}
+          </Tag>
+          <Tag style={{ marginInlineEnd: 6 }}>{profLabel(String(j.profile ?? "default"))}</Tag>
+          <Tag style={{ marginInlineEnd: 6 }}>{j.schedule_display || "自定义周期"}</Tag>
+          <span className="mono" style={{ fontSize: 11, opacity: 0.7 }}>{j.id}</span>
+        </>
+      );
+      const secs: React.ReactNode[] = [];
+      const kv: [string, string][] = [];
+      kv.push(["执行方式", j.script ? "📜 脚本 " + j.script : j.skill ? "🧩 技能 " + j.skill : "🤖 agent"]);
+      const org = j.origin;
+      kv.push([
+        "投递目标",
+        (j.deliver || "—") + (org && org.platform ? " · " + srcLabel(String(org.platform)) : "") + (org && org.chat_name ? " · " + String(org.chat_name).slice(0, 24) : ""),
+      ]);
+      kv.push(["下次执行", fmtIso(j.next_run_at)]);
+      kv.push(["上次执行", fmtIso(j.last_run_at)]);
+      kv.push(["上次状态", j.last_status === "ok" ? "✓ 成功" : j.last_status === "error" ? "✗ 失败" : "—"]);
+      if ((j.failure_streak ?? 0) > 0) kv.push(["连续失败", String(j.failure_streak) + " 次"]);
+      if (j.workdir) kv.push(["工作目录", String(j.workdir)]);
+      kv.push(["创建时间", fmtIso(j.created_at)]);
+      if (j.paused_at) kv.push(["暂停时间", fmtIso(j.paused_at) + (j.paused_reason ? " · " + String(j.paused_reason) : "")]);
+      secs.push(
+        <div className="tb-sec" key="kv">
+          <h3>任务</h3>
+          <div className="kv">
+            {kv.map(([k, v]) => (
+              <div key={k} style={{ display: "contents" }}>
+                <span className="k">{k}</span>
+                <span>{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>,
+      );
+      if (j.prompt)
+        secs.push(
+          <div className="tb-sec" key="prompt">
+            <h3>提示词</h3>
+            <pre className="tb-pre">{String(j.prompt).slice(0, 1500)}{String(j.prompt).length > 1500 ? " …" : ""}</pre>
+          </div>,
+        );
+      if (j.last_error)
+        secs.push(
+          <div className="tb-sec" key="err">
+            <h3 style={{ color: "var(--c-block)" }}>最近错误</h3>
+            <pre className="tb-pre" style={{ color: "var(--c-block)" }}>{String(j.last_error).slice(0, 800)}</pre>
+          </div>,
+        );
+      const ex = j.latest_execution;
+      if (ex)
+        secs.push(
+          <div className="tb-sec" key="ex">
+            <h3>最近一次执行</h3>
+            <div className="kv">
+              {(
+                [
+                  ["状态", ex.status || "—"],
+                  ["开始", fmtIso(ex.started_at)],
+                  ["结束", fmtIso(ex.finished_at)],
+                ] as [string, string][]
+              ).map(([k, v]) => (
+                <div key={k} style={{ display: "contents" }}>
+                  <span className="k">{k}</span>
+                  <span>{v}</span>
+                </div>
+              ))}
+            </div>
+            {ex.error ? <pre className="tb-pre" style={{ color: "var(--c-block)" }}>{String(ex.error).slice(0, 500)}</pre> : null}
+          </div>,
+        );
+      body = secs;
+    }
+  }
+
   return (
     <Drawer
-      open={taskOpen || sessOpen}
+      open={taskOpen || sessOpen || cronOpen}
       onClose={() => closeDrawer()}
       width={400}
       styles={{ body: { padding: "14px 16px 24px" } }}

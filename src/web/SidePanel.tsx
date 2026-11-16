@@ -1,11 +1,11 @@
 /**
- * 右栏: 未分配/待分诊 + 聊天工作(非 Kanban 会话) + 图例。
+ * 右栏: 定时任务(cron) + 未分配/待分诊 + 聊天工作(非 Kanban 会话) + 图例。
  * 24h/全部 切换用 antd Segmented; 列表行样式沿用画布体系(主题变量跟随 antd 算法)。
  */
 import { Segmented, Tooltip } from "antd";
 import {
-  READY_MIN, allTasks, chipMeta, openDrawerTask, openSession, profLabel, recentSessions, rel,
-  setChatAll, sortTasks, srcLabel,
+  READY_MIN, allTasks, chipMeta, openDrawerCron, openDrawerTask, openSession, profLabel,
+  recentSessions, rel, setChatAll, sortTasks, srcLabel, whenIso,
 } from "./state";
 import { useStore } from "./useStore";
 
@@ -21,9 +21,59 @@ export default function SidePanel() {
   const now = (snap.last.board && snap.last.board.now) || Math.floor(Date.now() / 1000);
   const list = recentSessions(snap.chatShowAll);
   const nowS = Date.now() / 1000;
+  // 定时任务: 启用的在前, 按名字排序
+  const crons = [...snap.last.crons].sort(
+    (a, b) => Number(b.enabled ?? false) - Number(a.enabled ?? false) || a.name.localeCompare(b.name),
+  );
 
   return (
     <aside className="tb-aside">
+      <div className="side-head">⏰ 定时任务 <span className="count">{crons.length}</span></div>
+      <div id="cronJobs">
+        {crons.length === 0 ? (
+          <div className="empty">🗓 没有定时任务<br />Hermes cron 任务会显示在这里</div>
+        ) : (
+          crons.map((j) => {
+            const on = !!j.enabled;
+            const lastTs = j.last_run_at ? new Date(j.last_run_at).getTime() / 1000 : null;
+            const mode = j.script
+              ? "📜 " + j.script
+              : j.skill
+                ? "🧩 " + j.skill
+                : "🤖 agent";
+            const meta =
+              profLabel(String(j.profile ?? "default")) +
+              " · " +
+              (j.schedule_display || "—") +
+              " · " +
+              mode;
+            const when =
+              (on ? "下次 " + whenIso(j.next_run_at, nowS) : "已暂停") +
+              (lastTs != null
+                ? " · 上次 " + rel(nowS - lastTs) + (j.last_status === "error" ? " ✗ 失败" : j.last_status === "ok" ? " ✓" : "")
+                : "");
+            return (
+              <div
+                key={j.id}
+                className={"cj-row " + (on ? "cj-on" : "cj-off")}
+                title={j.name + "  (点击查看详情)"}
+                onClick={() => openDrawerCron(j.id)}
+              >
+                <span className="cj-dot" />
+                <div className="cj-main">
+                  <div className="cj-title">
+                    {j.name}
+                    {(j.failure_streak ?? 0) >= 3 ? <span className="cj-warn" title={"连续失败 " + j.failure_streak + " 次"}>⚠</span> : null}
+                  </div>
+                  <div className="cj-meta">{meta}</div>
+                  <div className="cj-meta">{when}</div>
+                  {j.last_error ? <div className="cj-err">{String(j.last_error).slice(0, 60)}</div> : null}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
       <div className="side-head">📥 未分配 / 待分诊 <span className="count">{unassigned.length}</span></div>
       <div id="unassigned">
         {ts.length === 0 ? (

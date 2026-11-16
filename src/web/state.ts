@@ -136,6 +136,39 @@ export interface SessionMessage {
   timestamp?: number | string | null;
 }
 
+/** Hermes 定时任务(cron job), GET /api/cron/jobs 返回的数组元素 */
+export interface CronJob {
+  id: string;
+  name: string;
+  profile?: string | null;
+  state?: string; // scheduled | paused | running
+  enabled?: boolean;
+  schedule_display?: string | null;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  last_status?: string | null; // ok | error
+  last_error?: string | null;
+  failure_streak?: number | null;
+  script?: string | null;
+  no_agent?: boolean;
+  skill?: string | null;
+  prompt?: string | null;
+  deliver?: string | null;
+  origin?: { platform?: string | null; chat_name?: string | null } | null;
+  workdir?: string | null;
+  paused_at?: string | null;
+  paused_reason?: string | null;
+  created_at?: string | null;
+  live_execution?: unknown;
+  latest_execution?: {
+    id?: string;
+    status?: string;
+    started_at?: string | null;
+    finished_at?: string | null;
+    error?: string | null;
+  } | null;
+}
+
 export type ByAssignee = Record<string, Task[]>;
 
 export interface WorkerState {
@@ -157,6 +190,7 @@ export interface LastData {
   profiles: ProfilesResp | null;
   diag: DiagResp | null;
   sessions: SessionsResp | null;
+  crons: CronJob[];
   ok: boolean;
   error: string | null;
   at: number;
@@ -210,6 +244,21 @@ export function rel(sec: number | null | undefined): string {
   if (s < 3600) return Math.floor(s / 60) + "m 前";
   if (s < 86400) return (s / 3600).toFixed(1) + "h 前";
   return (s / 86400).toFixed(1) + "d 前";
+}
+
+/** ISO 时间(含时区)相对现在的表达: 未来 → "12m 后", 过去 → rel() 的 "12m 前" */
+export function whenIso(iso: string | null | undefined, nowS: number): string {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime() / 1000;
+  if (Number.isNaN(t)) return "—";
+  const d = t - nowS;
+  if (d >= 0) {
+    if (d < 60) return "1m 后";
+    if (d < 3600) return Math.ceil(d / 60) + "m 后";
+    if (d < 86400) return (d / 3600).toFixed(1) + "h 后";
+    return (d / 86400).toFixed(1) + "d 后";
+  }
+  return rel(-d);
 }
 
 export function chipMeta(t: Task, _st: WorkerState | null, now: number): string {
@@ -372,7 +421,7 @@ export function teamCounts(): {
 /* ================= 全局状态 + 订阅 ================= */
 
 export let LAST: LastData = {
-  board: null, workers: null, stats: null, profiles: null, diag: null, sessions: null,
+  board: null, workers: null, stats: null, profiles: null, diag: null, sessions: null, crons: [],
   ok: false, error: null, at: 0,
 };
 export let HEALTH: Health | null = null;
@@ -383,6 +432,7 @@ export let chatShowAll = false;
 export let theme: ThemeMode = initialTheme();
 export let drawerTaskId: string | null = null;
 export let drawerSessionId: string | null = null;
+export let drawerCronId: string | null = null;
 export let workerPageId: string | null = null;
 export let configOpen = false;
 /** worker 节点的屏幕矩形(含当前缩放/平移), 供悬浮面板锚定 */
@@ -432,18 +482,28 @@ export function setChatAll(v: boolean): void {
 export function openDrawerTask(id: string): void {
   drawerTaskId = id;
   drawerSessionId = null;
+  drawerCronId = null;
   emit();
 }
 
 export function openSession(id: string): void {
   drawerTaskId = null;
   drawerSessionId = id;
+  drawerCronId = null;
+  emit();
+}
+
+export function openDrawerCron(id: string): void {
+  drawerTaskId = null;
+  drawerSessionId = null;
+  drawerCronId = id;
   emit();
 }
 
 export function closeDrawer(): void {
   drawerTaskId = null;
   drawerSessionId = null;
+  drawerCronId = null;
   emit();
 }
 
@@ -469,7 +529,7 @@ let started = false;
 
 async function poll(): Promise<void> {
   try {
-    const [board, workers, stats, profiles, diag, sessions] = await Promise.all([
+    const [board, workers, stats, profiles, diag, sessions, crons] = await Promise.all([
       fetchJSON<Board>("/proxy/api/plugins/kanban/board"),
       fetchJSON<WorkersResp>("/proxy/api/plugins/kanban/workers/active"),
       fetchJSON<unknown>("/proxy/api/plugins/kanban/stats"),
@@ -477,8 +537,10 @@ async function poll(): Promise<void> {
       fetchJSON<DiagResp>("/proxy/api/plugins/kanban/diagnostics").catch(() => ({ diagnostics: [] })),
       // Hermes sessions 接口 limit 上限为 100(超过 422), 这里已是全量
       fetchJSON<SessionsResp>("/proxy/api/sessions?limit=100").catch(() => ({ sessions: [] })),
+      // 定时任务(cron job)列表; 端点异常不影响看板主体
+      fetchJSON<CronJob[]>("/proxy/api/cron/jobs").catch(() => []),
     ]);
-    LAST = { board, workers, stats, profiles, diag, sessions, ok: true, error: null, at: Date.now() };
+    LAST = { board, workers, stats, profiles, diag, sessions, crons, ok: true, error: null, at: Date.now() };
   } catch (e) {
     // 断线时保留最后成功数据; 顶栏状态由 pollHealth 显示(不用 toast)
     LAST.ok = false;
